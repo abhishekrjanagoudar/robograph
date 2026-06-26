@@ -2,7 +2,7 @@ import networkx as nx
 from typing import Dict, List, Any
 from mcp.server.fastmcp import FastMCP
 from robograph.graph.engine import GraphEngine
-from robograph.intelligence.explainer import Explainer
+from robograph.analysis.explainer import Explainer
 
 # Initialize FastMCP server
 mcp = FastMCP("RoboGraph")
@@ -69,3 +69,4 @@ def explain_entity(entity_name: str) -> str:
 
 if __name__ == "__main__":
     mcp.run()
+

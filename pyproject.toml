@@ -28,3 +28,8 @@ robograph = "robograph.cli.main:app"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["Test Env", ".git", ".pytest_cache", ".robograph"]
+

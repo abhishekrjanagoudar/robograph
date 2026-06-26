@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
@@ -6,7 +6,7 @@ import networkx as nx
 from typing import Dict, Any, List
 
 from robograph.graph.engine import GraphEngine
-from robograph.intelligence.explainer import Explainer
+from robograph.analysis.explainer import Explainer
 from pathlib import Path
 
 app = FastAPI(title="RoboGraph Studio v1 API", description="AI Codebase Architecture Mapper API")
@@ -34,6 +34,10 @@ def load_graph():
 def root():
     return RedirectResponse(url="/static/index.html")
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(content=b"", media_type="image/x-icon")
+
 def get_engine() -> GraphEngine:
     return app.state.engine
 
@@ -47,7 +51,7 @@ def get_graph(view: str = "all", filter_pkg: str = None):
     if view == "packages":
         allowed_types = {"package"}
     elif view == "launch":
-        allowed_types = {"launch_file", "ros_node", "package"}
+        allowed_types = {"launch_file", "ros_node", "package", "config"}
     elif view == "nodes":
         allowed_types = {"ros_node", "package"}
     elif view == "topics":
@@ -116,6 +120,7 @@ def search(q: str):
             elif ntype == "package": results["packages"].append(item)
             elif ntype == "function": results["functions"].append(item)
             elif ntype == "launch_file": results["launch_files"].append(item)
+            elif ntype == "config": results["files"].append(item)
             
     return results
 
@@ -252,5 +257,6 @@ def get_recommendations():
             pass
             
     return {"root_launch_files": roots, "central_chokepoints": central_nodes}
+
 
 

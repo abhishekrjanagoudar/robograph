@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from robograph.agent_injection.registry import AGENT_FILES
+from robograph.agents.registry import AGENT_FILES
 
 def detect_agents(workspace_dir: str):
     present = {}
@@ -12,3 +12,4 @@ def detect_agents(workspace_dir: str):
         else:
             missing[agent] = filename
     return present, missing
+

@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from robograph.agent_injection.templates import generate_context
+from robograph.agents.templates import generate_context
 from robograph.graph.engine import GraphEngine
 
 START_MARKER = "<!-- ROBOGRAPH_START -->"
@@ -23,3 +23,12 @@ def inject_context(workspace_dir: str, agent_type: str, filename: str, engine: G
         path.write_text(content, encoding="utf-8")
     else:
         path.write_text(f"{block}\n", encoding="utf-8")
+        
+    if agent_type in ("antigravity", "agy"):
+        from robograph.agents.templates import generate_skill_content
+        skill_dir = Path(workspace_dir) / ".agents" / "skills" / "robograph"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        skill_path = skill_dir / "SKILL.md"
+        skill_content = generate_skill_content(engine)
+        skill_path.write_text(skill_content, encoding="utf-8")
+

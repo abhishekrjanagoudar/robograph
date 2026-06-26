@@ -10,7 +10,11 @@ class Ros2PythonAnalyzer(ast.NodeVisitor):
         self.subscribers = []
         self.services = []
         self.clients = []
+        self.classes = []
+        self.functions = []
         self.variables = {}  # Symbol table for simple variable resolution
+        self.context_stack = []
+        self.function_calls = []
 
     def analyze(self):
         with open(self.file_path, "r", encoding="utf-8") as f:
@@ -29,6 +33,16 @@ class Ros2PythonAnalyzer(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call):
+        if self.context_stack:
+            caller = self.context_stack[-1]
+            callee = None
+            if isinstance(node.func, ast.Name):
+                callee = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                callee = node.func.attr
+            if callee:
+                self.function_calls.append((caller, callee))
+                
         # Look for super().__init__("node_name")
         if isinstance(node.func, ast.Attribute) and node.func.attr == "__init__":
             if isinstance(node.func.value, ast.Call) and isinstance(node.func.value.func, ast.Name) and node.func.value.func.id == "super":
@@ -47,6 +61,32 @@ class Ros2PythonAnalyzer(ast.NodeVisitor):
                 self._extract_srv(node, self.clients)
         
         self.generic_visit(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        inherits = []
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                inherits.append(base.id)
+            elif isinstance(base, ast.Attribute):
+                inherits.append(base.attr)
+        self.classes.append({
+            "name": node.name,
+            "inherits": inherits,
+            "line": node.lineno
+        })
+        self.context_stack.append(node.name)
+        self.generic_visit(node)
+        self.context_stack.pop()
+
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        # We might not want to capture every single nested function, but top level or class methods
+        self.functions.append({
+            "name": node.name,
+            "line": node.lineno
+        })
+        self.context_stack.append(node.name)
+        self.generic_visit(node)
+        self.context_stack.pop()
 
     def _resolve_arg(self, arg: ast.AST) -> str:
         if isinstance(arg, ast.Constant) and isinstance(arg.value, str):

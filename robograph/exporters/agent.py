@@ -14,12 +14,16 @@ class AgentContextExporter:
         topics = self.engine.get_nodes_by_type("topic")
         launch_files = self.engine.get_nodes_by_type("launch_file")
         communities = self.engine.get_nodes_by_type("community")
+        classes = self.engine.get_nodes_by_type("class")
+        functions = self.engine.get_nodes_by_type("function")
         
         lines.append(f"Packages: {len(packages)}")
         lines.append(f"Nodes: {len(nodes)}")
         lines.append(f"Topics: {len(topics)}")
         lines.append(f"Launch Files: {len(launch_files)}")
         lines.append(f"Communities Identified: {len(communities)}")
+        lines.append(f"Classes: {len(classes)}")
+        lines.append(f"Functions: {len(functions)}")
         lines.append("\n---\n")
 
         lines.append("# Major Subsystems")
@@ -76,6 +80,23 @@ class AgentContextExporter:
             if subscribers:
                 lines.append(f"Subscribes: {', '.join(subscribers)}")
             lines.append("")
+
+        if classes:
+            lines.append("\n---\n")
+            lines.append("# Important Classes")
+            for cls in classes:
+                cls_data = self.graph.nodes[cls]
+                file_path = cls_data.get('file_path', 'unknown')
+                line = cls_data.get('line', '')
+                lines.append(f"- **{cls}** (File: {file_path}{':' + str(line) if line else ''})")
+                
+                # Check for inheritance
+                parents = []
+                for u, v, data in self.graph.edges(data=True):
+                    if u == cls and data.get("relation") == "inherits_from":
+                        parents.append(v)
+                if parents:
+                    lines.append(f"  - Inherits from: {', '.join(parents)}")
 
         lines.append("\n---\n")
         lines.append("# Central Chokepoints")
