@@ -9,7 +9,8 @@ It statically scans packages, C++/Python nodes, topics, launch trees, classes, a
 ## 🚀 Key Features
 
 *   🖥️ **Studio Web UI**: Sub-100ms localhost dashboard powered by `vis.js` for multi-graph views, execution flows, and impact analysis.
-*   🔌 **Intelligent Parsing**: `tree-sitter-cpp` & AST parsing for Python and C++ files to identify topic publishers, subscribers, services, actions, and class inheritances.
+*   🔌 **Intelligent Parsing**: `tree-sitter-cpp` & AST parsing for Python and C++ files to identify topic publishers, subscribers, services, actions, class inheritances, and dynamic caller-callee execution edges.
+*   🚀 **Launch Topologies**: Automatically resolves runtime `.yaml` configurations and `remaps` argument topic translations.
 *   🧠 **Context Compression**: Reduces context size by up to 90% by replacing raw code lines with a concise architectural summary, saving LLM tokens.
 *   🎯 **Context Injection**: Synchronizes architectural knowledge across **10+** agent configurations (Cursor, Claude, Gemini, Cline, Antigravity IDE, etc.).
 *   🧩 **FastMCP Server**: Integrates with Model Context Protocol to expose architectural lookup tools directly to LLMs.
@@ -20,53 +21,44 @@ It statically scans packages, C++/Python nodes, topics, launch trees, classes, a
 
 *Prerequisites: Python 3.11+, Git*
 
-### 📦 Option 1: Global Install (via pipx)
-To install globally in an isolated environment (works on Windows, Linux, and macOS):
-```bash
-pipx install git+https://github.com/abhishekrjanagoudar/robograph.git
-```
-
-### 💻 Option 2: Local User Install (via pip)
-If you do not have `pipx` installed, you can install the repository directly to your user Python environment:
-
-*   **Linux / macOS / Windows**:
-    ```bash
-    git clone https://github.com/abhishekrjanagoudar/robograph.git
-    cd robograph
-    pip install -e .
-    ```
-
-### 🛠️ Option 3: From Source (via Poetry)
-For developer setup:
+### 🐧 Linux & WSL
 ```bash
 git clone https://github.com/abhishekrjanagoudar/robograph.git
 cd robograph
+pipx install .  # Recommended for isolated global install
+# OR
+pip install --user .
+```
+
+### 🪟 Windows (via WSL)
+For full ROS2 compatibility on Windows, always run RoboGraph **inside** WSL:
+1. Open your **WSL terminal** (e.g., Ubuntu).
+2. Follow the **Linux & WSL** steps above.
+
+### 🐍 Virtual Environment (venv / poetry)
+For isolated development without affecting system packages:
+```bash
+git clone https://github.com/abhishekrjanagoudar/robograph.git
+cd robograph
+
+# Using standard venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+
+# OR Using Poetry
 poetry install
 ```
 
 ---
 
-## ⚠️ Troubleshooting Command Not Found (PATH Issues)
-
-If you get a `command not found` or `term 'robograph' is not recognized` error after installing, it means your Python scripts directory is not in your system's `PATH`.
-
-### Fallback Method (Works Everywhere)
-You can run any RoboGraph command by prefixing it with `python -m robograph`:
-```powershell
+## ⚠️ Troubleshooting Command Not Found
+If the `robograph` command is not recognized, run the module directly as a fallback:
+```bash
 python -m robograph analyze .
 python -m robograph ui
 ```
-
-### Adding Python Scripts to PATH
-*   **Windows**:
-    1. Locate your Python scripts folder (typically `C:\Users\<Username>\AppData\Local\Programs\Python\Python311\Scripts` or similar).
-    2. Add this path to your user environment variables under **PATH**.
-    3. Restart your terminal (e.g., PowerShell).
-*   **Linux / macOS**:
-    Add the following to your `~/.bashrc` or `~/.zshrc`:
-    ```bash
-    export PATH="$HOME/.local/bin:$PATH"
-    ```
+*(To fix permanently, add `export PATH="$HOME/.local/bin:$PATH"` to your `~/.bashrc`)*
 
 ---
 
@@ -118,8 +110,8 @@ RoboGraph synchronizes architectural mappings across the following systems:
 
 *   **Claude Code**: `CLAUDE.md`
 *   **Gemini CLI**: `GEMINI.md`
-*   **Antigravity IDE**: `AGENTS.md` + Custom Skill
-*   **AGY CLI**: `AGENTS.md` + Custom Skill
+*   **Antigravity IDE**: `.agents/AGENTS.md` + `.agents/skills/robograph/SKILL.md`
+*   **AGY CLI**: `.agents/AGENTS.md` + `.agents/skills/robograph/SKILL.md`
 *   **Codex**: `AGENTS.md`
 *   **Cursor**: `.cursorrules`
 *   **Cline**: `.clinerules`

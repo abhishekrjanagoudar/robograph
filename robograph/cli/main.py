@@ -3,17 +3,17 @@ import os
 from pathlib import Path
 from rich.console import Console
 
-from robograph.analyzers.scanner import WorkspaceScanner
-from robograph.analyzers.community_analyzer import CommunityAnalyzer
-from robograph.parsers.python.ros2_analyzer import Ros2PythonAnalyzer, PackageAnalyzer
-from robograph.parsers.python.launch_analyzer import LaunchAnalyzer
+from robograph.analysis.scanner import WorkspaceScanner
+from robograph.analysis.community import CommunityAnalyzer
+from robograph.parsers.ros2.ros2_analyzer import Ros2PythonAnalyzer, PackageAnalyzer
+from robograph.parsers.ros2.launch_analyzer import LaunchAnalyzer
 from robograph.parsers.cpp.cpp_analyzer import CppAnalyzer
 from robograph.graph.engine import GraphEngine
 from robograph.exporters.agent import AgentContextExporter
 from robograph.exporters.mermaid import MermaidExporter
-from robograph.agent_injection.detector import detect_agents
-from robograph.agent_injection.injector import inject_context
-from robograph.agent_injection.registry import AGENT_FILES
+from robograph.agents.detector import detect_agents
+from robograph.agents.injector import inject_context
+from robograph.agents.registry import AGENT_FILES
 
 app = typer.Typer(help="RoboGraph: AI Codebase Architecture Mapper")
 console = Console()
@@ -53,16 +53,27 @@ def analyze(path: str = typer.Argument(..., help="Path to the repository to anal
     engine = GraphEngine()
     
     packages_map = []
-    # Process packages
+    local_packages = set()
+    package_infos = []
+    
+    # First pass: collect local packages
     for pkg_xml in results["packages"]:
         pkg_xml_abs = pkg_xml.resolve()
         info = PackageAnalyzer.extract_package_info(pkg_xml_abs)
         if info["name"]:
-            engine.add_package(info["name"])
+            local_packages.add(info["name"])
             packages_map.append((pkg_xml_abs.parent, info["name"]))
-            for dep in info["dependencies"]:
+            package_infos.append(info)
+
+    # Second pass: process packages and dependencies
+    for info in package_infos:
+        engine.add_package(info["name"])
+        for dep in info["dependencies"]:
+            if dep in local_packages:
                 engine.add_package(dep) # Ensure target node exists
-                engine.add_package_dependency(info["name"], dep)
+            else:
+                engine.graph.add_node(dep, type="external_package")
+            engine.add_package_dependency(info["name"], dep)
             
     executable_map = {}
 
@@ -83,7 +94,8 @@ def analyze(path: str = typer.Argument(..., help="Path to the repository to anal
         pkg_name = find_package_for_file(py_file_abs, packages_map)
         
         # If publishers/subscribers found, treat as node
-        if analyzer.publishers or analyzer.subscribers or analyzer.services or analyzer.node_name:
+        is_node = bool(analyzer.publishers or analyzer.subscribers or analyzer.services or analyzer.node_name)
+        if is_node:
             engine.add_node(node_name, package_name=pkg_name, file_path=str(py_file_abs))
             for pub in analyzer.publishers:
                 engine.add_topic(pub["topic"], pub["msg_type"])
@@ -91,15 +103,25 @@ def analyze(path: str = typer.Argument(..., help="Path to the repository to anal
             for sub in analyzer.subscribers:
                 engine.add_topic(sub["topic"], sub["msg_type"])
                 engine.add_subscriber(node_name, sub["topic"], line=sub.get("line"))
+        elif analyzer.classes or analyzer.functions:
+            # Create a module node to hold classes and functions if it's not a ROS node
+            engine.graph.add_node(node_name, type="module", file_path=str(py_file_abs))
+            if pkg_name:
+                engine.graph.add_edge(pkg_name, node_name, relation="contains", confidence=1.0, source="AST")
         
         # Add classes and functions even if not a node
         for cls in analyzer.classes:
             engine.add_class(cls["name"], file_path=str(py_file_abs), line=cls["line"])
+            engine.graph.add_edge(node_name, cls["name"], relation="contains", confidence=1.0, source="AST")
             for parent in cls["inherits"]:
                 engine.add_class(parent)
                 engine.add_class_inheritance(cls["name"], parent)
         for func in analyzer.functions:
             engine.add_function(func["name"], file_path=str(py_file_abs), line=func["line"])
+            engine.graph.add_edge(node_name, func["name"], relation="contains", confidence=1.0, source="AST")
+            
+        for caller, callee in analyzer.function_calls:
+            engine.add_function_call(caller, callee)
 
     # Process C++ files
     for cpp_file in results["source_cpp"]:
@@ -115,7 +137,8 @@ def analyze(path: str = typer.Argument(..., help="Path to the repository to anal
         
         pkg_name = find_package_for_file(cpp_file_abs, packages_map)
         
-        if analyzer.publishers or analyzer.subscribers or analyzer.services or analyzer.clients or analyzer.node_name:
+        is_node = bool(analyzer.publishers or analyzer.subscribers or analyzer.services or analyzer.clients or analyzer.node_name)
+        if is_node:
             engine.add_node(node_name, package_name=pkg_name, file_path=str(cpp_file_abs))
             for pub in analyzer.publishers:
                 engine.add_topic(pub["topic"], pub["msg_type"])
@@ -123,14 +146,20 @@ def analyze(path: str = typer.Argument(..., help="Path to the repository to anal
             for sub in analyzer.subscribers:
                 engine.add_topic(sub["topic"], sub["msg_type"])
                 engine.add_subscriber(node_name, sub["topic"], line=sub.get("line"))
+        elif analyzer.classes or analyzer.functions:
+            engine.graph.add_node(node_name, type="module", file_path=str(cpp_file_abs))
+            if pkg_name:
+                engine.graph.add_edge(pkg_name, node_name, relation="contains", confidence=1.0, source="AST")
                 
         for cls in analyzer.classes:
             engine.add_class(cls["name"], file_path=str(cpp_file_abs), line=cls["line"])
+            engine.graph.add_edge(node_name, cls["name"], relation="contains", confidence=1.0, source="AST")
             for parent in cls["inherits"]:
                 engine.add_class(parent)
                 engine.add_class_inheritance(cls["name"], parent)
         for func in analyzer.functions:
             engine.add_function(func["name"], file_path=str(cpp_file_abs), line=func["line"])
+            engine.graph.add_edge(node_name, func["name"], relation="contains", confidence=1.0, source="AST")
 
     # Process Launch files
     for launch_file in results["launch_files"]:
@@ -149,6 +178,16 @@ def analyze(path: str = typer.Argument(..., help="Path to the repository to anal
             
             engine.add_node(resolved_node_name, package_name=node["package"])
             engine.graph.add_edge(launch_file_abs.name, resolved_node_name, relation="spawns")
+            
+            for old_t, new_t in node.get("remappings", []):
+                engine.add_topic(new_t)
+                engine.graph.add_edge(resolved_node_name, new_t, relation="remaps_to", original_topic=old_t, source="LaunchAST")
+                
+            for param_file in node.get("parameters", []):
+                if param_file.endswith(".yaml") or param_file.endswith(".yml"):
+                    engine.graph.add_node(param_file, type="config")
+                    engine.graph.add_edge(launch_file_abs.name, param_file, relation="loads", source="LaunchAST")
+                    engine.graph.add_edge(param_file, resolved_node_name, relation="configures", source="LaunchAST")
 
     # Run Community Detection
     comm_analyzer = CommunityAnalyzer(engine)
@@ -257,7 +296,7 @@ def explain(entity: str):
     Explain a specific node, topic, or component from the knowledge graph.
     """
     try:
-        from robograph.intelligence.explainer import Explainer
+        from robograph.analysis.explainer import Explainer
     except ImportError:
         console.print("[bold red]Failed to import Explainer.[/bold red]")
         return
@@ -471,7 +510,7 @@ def inject(
         inject_context(path, agent, fname, engine)
         console.print(f"[green][OK] Injected context into {fname}[/green]")
         if agent in ("antigravity", "agy"):
-            console.print("[green][OK] Generated .antigravity/skills/robograph/SKILL.md[/green]")
+            console.print("[green][OK] Generated .agents/skills/robograph/SKILL.md[/green]")
 
 @app.command()
 def doctor(path: str = typer.Argument(".", help="Path to workspace")):
@@ -503,3 +542,4 @@ def doctor(path: str = typer.Argument(".", help="Path to workspace")):
 
 if __name__ == "__main__":
     app()
+

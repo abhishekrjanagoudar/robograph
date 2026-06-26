@@ -1,8 +1,8 @@
 AGENT_FILES = {
     "claude": "CLAUDE.md",
     "gemini": "GEMINI.md",
-    "antigravity": "AGENTS.md",
-    "agy": "AGENTS.md",
+    "antigravity": ".agents/AGENTS.md",
+    "agy": ".agents/AGENTS.md",
     "codex": "AGENTS.md",
     "cursor": ".cursorrules",
     "cline": ".clinerules",

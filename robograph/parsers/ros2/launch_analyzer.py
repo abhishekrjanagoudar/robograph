@@ -53,14 +53,40 @@ class LaunchAnalyzer(ast.NodeVisitor):
             return self.variables[arg.id]
         return "unknown"
 
+    def _extract_yaml_files(self, node: ast.AST) -> List[str]:
+        yamls = []
+        for child in ast.walk(node):
+            if isinstance(child, ast.Constant) and isinstance(child.value, str):
+                if child.value.endswith(".yaml") or child.value.endswith(".yml"):
+                    yamls.append(child.value)
+        return yamls
+
     def _extract_node(self, node: ast.Call):
         pkg = "unknown"
         executable = "unknown"
+        remappings = []
+        parameters = []
         for kw in node.keywords:
             if kw.arg == "package":
                 pkg = self._resolve_arg(kw.value)
             elif kw.arg == "executable":
                 executable = self._resolve_arg(kw.value)
+            elif kw.arg == "remappings":
+                if isinstance(kw.value, (ast.List, ast.Tuple)):
+                    for elt in kw.value.elts:
+                        if isinstance(elt, (ast.Tuple, ast.List)) and len(elt.elts) >= 2:
+                            old_topic = self._resolve_arg(elt.elts[0])
+                            new_topic = self._resolve_arg(elt.elts[1])
+                            if old_topic != "unknown" and new_topic != "unknown":
+                                remappings.append((old_topic, new_topic))
+            elif kw.arg == "parameters":
+                parameters.extend(self._extract_yaml_files(kw.value))
+
         if pkg != "unknown" or executable != "unknown":
-            self.nodes.append({"package": pkg, "executable": executable})
+            self.nodes.append({
+                "package": pkg, 
+                "executable": executable,
+                "remappings": remappings,
+                "parameters": parameters
+            })
 

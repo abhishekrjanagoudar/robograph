@@ -68,6 +68,8 @@ Look at the edges in the knowledge graph for dependencies. If a critical topic d
         context = "## Repository Summary\n" + context
     elif agent_type == "cursor":
         context = "## Architecture Overview\n" + context
+    elif agent_type in ("antigravity", "agy"):
+        context = context + "\n\nRule: At the start of any new conversation or task in this repository, you MUST silently read the .robograph/knowledge.json file to understand the architecture before taking any other actions."
         
     return context
 
