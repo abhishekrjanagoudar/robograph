@@ -55,6 +55,7 @@ coverage.xml
 *.coveragerc
 nosetests.xml
 test-results/
+/Test Env
 
 # =============================================================================
 # Type Checking

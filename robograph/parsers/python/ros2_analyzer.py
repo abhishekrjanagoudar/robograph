@@ -10,6 +10,8 @@ class Ros2PythonAnalyzer(ast.NodeVisitor):
         self.subscribers = []
         self.services = []
         self.clients = []
+        self.classes = []
+        self.functions = []
         self.variables = {}  # Symbol table for simple variable resolution
 
     def analyze(self):
@@ -46,6 +48,28 @@ class Ros2PythonAnalyzer(ast.NodeVisitor):
             elif func_name == "create_client":
                 self._extract_srv(node, self.clients)
         
+        self.generic_visit(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        inherits = []
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                inherits.append(base.id)
+            elif isinstance(base, ast.Attribute):
+                inherits.append(base.attr)
+        self.classes.append({
+            "name": node.name,
+            "inherits": inherits,
+            "line": node.lineno
+        })
+        self.generic_visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        # We might not want to capture every single nested function, but top level or class methods
+        self.functions.append({
+            "name": node.name,
+            "line": node.lineno
+        })
         self.generic_visit(node)
 
     def _resolve_arg(self, arg: ast.AST) -> str:
